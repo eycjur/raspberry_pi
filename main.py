@@ -1,22 +1,14 @@
-import device_for_circuitpython as device
-import time
+import sys
 
+USE_WIFI = False
 
-# button = device.Button(num_in=16)
-# led = device.LED(num_out=15)
-# while True:
-#     if button.is_push():
-#         led.turn_on()
-#     else:
-#         led.turn_off()
-#     utime.sleep(1)
+if "MicroPython" in sys.version:
+    print("use micropython")
+    from for_micropython import device
+    from for_micropython import util  # noqa: F401
+    if USE_WIFI:
+        from for_micropython import util4w  # noqa: F401
 
-# motion_sensor = device.MotionSensor(num_in=20)
-
-display = device.Display(num_sda=12, num_scl=13)
-amedas = device.AMeDAS(num_sda=12, num_scl=13)
-
-while True:
-    print(amedas.measure())
-    display.print(amedas.measure())
-    time.sleep(1)
+else:
+    print("use circuitpython")
+    from for_circuitpython import device  # noqa: F401

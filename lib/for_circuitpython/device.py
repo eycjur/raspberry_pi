@@ -2,12 +2,9 @@ import board
 import busio
 import digitalio
 
+
 PIN_PREFIX = "GP"
 i2c = None
-
-
-class ConnectionError(Exception):
-    pass
 
 
 class LED:

@@ -1,1 +1,10 @@
 .DS_Store
+
+lib/adafruit_bme280/
+lib/bme280.py
+lib/lcd_api.py
+lib/machine_i2c_lcd.py
+lib/circuitpython_i2c_lcd.py
+secret.py
+
+uf2/
