@@ -1,7 +1,7 @@
 from machine import I2C, Pin, PWM
 import utime
 
-from errors import ConnectionError
+from util.errors import ConnectionError, TimeoutError
 
 
 class LED:
@@ -19,9 +19,11 @@ class LED:
         self.pin = Pin(num_out, Pin.OUT)
 
     def turn_on(self) -> None:
+        """LEDを点灯する"""
         self.pin.value(1)
 
     def turn_off(self) -> None:
+        """LEDを消灯する"""
         self.pin.value(0)
 
 
@@ -40,6 +42,11 @@ class Button:
         self.pin = Pin(num_in, Pin.IN, Pin.PULL_DOWN)
 
     def is_push(self) -> bool:
+        """ボタンが押されているかを返す
+
+        Returns:
+            bool: ボタンが押されているか
+        """
         return self.pin.value()
 
 
@@ -55,10 +62,16 @@ class MotionSensor:
         self.pin = Pin(20, Pin.IN, Pin.PULL_DOWN)
 
     def is_detect(self) -> bool:
+        """モーションを検知しているかを返す
+
+        Returns:
+            bool: モーションを検知しているか
+        """
         return self.pin.value()
 
 
 class AMeDASMeasurement:
+    """気圧、温度、湿度を表すクラス"""
     def __init__(self, values: list) -> None:
         temperature, pressure, humidity = values
         self.pressure = float(pressure[:-3])
@@ -72,7 +85,7 @@ class AMeDASMeasurement:
 
 
 class AMeDAS:
-    """気圧、温度、湿度を表すクラス
+    """気圧、温度、湿度を測定するクラス
 
     Examples:
         >>> amedas = device.AMeDAS(num_sda=12, num_scl=13)
@@ -98,6 +111,11 @@ class AMeDAS:
         self.bme = bme280.BME280(i2c=i2c)
 
     def measure(self) -> AMeDASMeasurement:
+        """気圧、温度、湿度を測定する
+
+        Returns:
+            AMeDASMeasurement: 気圧、温度、湿度を表すクラス
+        """
         return AMeDASMeasurement(self.bme.values)
 
 
@@ -132,10 +150,16 @@ class Display:
         self.clear()
 
     def print(self, value) -> None:
+        """LCDに文字列を表示する
+
+        Args:
+            value (str): 表示する文字列
+        """
         self.clear()
         self.lcd.putstr(str(value))
 
     def clear(self) -> None:
+        """LCDに表示されている文字列を消去する"""
         self.lcd.clear()
 
 
@@ -153,8 +177,8 @@ class ServoMotor:
 
     Hint:
         | SG90    | Pico |
-        | ----    | ---- |
-        | VCC(赤) | Vbus |
+        | ------- | ---- |
+        | VCC(赤) | Vsys |
         | GND(茶) | GND  |
         | PWM(黃) | GP1  |
     """
@@ -163,11 +187,24 @@ class ServoMotor:
         self.pwm.freq(50)
 
     def _degree2servo_value(self, degree):
+        """角度をサーボモーターの値に変換する
+
+        Args:
+            degree (int): 角度(-90~90)
+
+        Returns:
+            int: サーボモーターの値
+        """
         duty_ms = (degree + 90) / 180 * 1.9 + 0.5
         duty_ratio = duty_ms / 20  # 50Hz
         return int(duty_ratio * 65535)
 
     def set_angle(self, degree: int) -> None:
+        """サーボモーターの角度を設定する
+
+        Args:
+            degree (int): 角度(-90~90)
+        """
         self.pwm.duty_u16(self._degree2servo_value(degree))
 
 
@@ -192,6 +229,9 @@ class UltrasonicSensor:
         ECHO -> 1kΩ -> 2kΩ -> GND
                     └> GP15
     """
+
+    MAX_TRY = 10000
+
     def __init__(self, num_trigger: int, num_echo: int) -> None:
         self.trigger = Pin(num_trigger, Pin.OUT)
         self.echo = Pin(num_echo, Pin.IN)
@@ -207,10 +247,124 @@ class UltrasonicSensor:
         self.trigger.high()
         utime.sleep(0.00001)
         self.trigger.low()
-        while self.echo.value() == 0:
-            signaloff = utime.ticks_us()
-        while self.echo.value() == 1:
-            signalon = utime.ticks_us()
+
+        for i in range(self.MAX_TRY):
+            if self.echo.value() != 0:
+                signaloff = utime.ticks_us()
+                break
+        else:  # breakしなかった場合
+            raise TimeoutError("センサーの値を読み取れませんでした")
+        for i in range(self.MAX_TRY):
+            if self.echo.value() != 1:
+                signalon = utime.ticks_us()
+                break
+        else:  # breakしなかった場合
+            raise TimeoutError("センサーの値を読み取れませんでした")
+
         timepassed_s = (signalon - signaloff) / 1000000
         distance_m = (timepassed_s * 342.62) / 2  # 20℃
         return distance_m * 100
+
+
+class IndividualMotorDriver:
+    """個別のモーターを制御するクラス"""
+    def __init__(self, num_in_1, num_in_2) -> None:
+        self.in_1 = Pin(num_in_1, Pin.OUT)
+        self.in_2 = Pin(num_in_2, Pin.OUT)
+
+    def forward_rotation(self) -> None:
+        """正転"""
+        self.in_1.value(1)
+        self.in_2.value(0)
+
+    def reverse_rotation(self) -> None:
+        """逆転"""
+        self.in_1.value(0)
+        self.in_2.value(1)
+
+    def brake(self) -> None:
+        """ブレーキ"""
+        self.in_1.value(1)
+        self.in_2.value(1)
+
+    def idle(self) -> None:
+        """空転"""
+        self.in_1.value(0)
+        self.in_2.value(0)
+
+
+class MotorDriver:
+    """モータードライバーを制御するクラス
+
+    References:
+        https://akizukidenshi.com/download/ds/akizuki/AE-DRV8835-S_20210526.pdf
+
+    Examples:
+        >>> motor_driver = device.MotorDriver(num_a_in_1=15, num_a_in_2=14, num_b_in_1=13, num_b_in_2=12)
+        >>> motor_driver.forward()
+        >>> motor_driver.right()
+        >>> motor_driver.left()
+        >>> motor_driver.backward()
+        >>> motor_driver.stop()
+        >>> motor_driver.release()
+
+    Hint:
+        | DRV8835 | Pico       |
+        | ------- | ---------- |
+        | VM      | Vsys       |
+        | AOUT1   | motor(左上) |
+        | AOUT2   | motor(左下) |
+        | BOUT1   | motor(右上) |
+        | BOUT2   | motor(右下) |
+        | GND     | GND        |
+        | VCC     | Vbus       |
+        | MODE    |            |  # 0でIN/INモード、1でPH/ENモード
+        | AIN1    | GP15       |
+        | AIN2    | GP14       |
+        | BIN1    | GP13       |
+        | BIN2    | GP12       |
+    """
+    def __init__(self, num_a_in_1, num_a_in_2, num_b_in_1, num_b_in_2) -> None:
+        self.motor_left = IndividualMotorDriver(num_a_in_1, num_a_in_2)
+        self.motor_right = IndividualMotorDriver(num_b_in_1, num_b_in_2)
+
+    def forward(self) -> None:
+        """前進"""
+        self.motor_left.forward_rotation()
+        self.motor_right.forward_rotation()
+
+    def right(self) -> None:
+        """右に進む"""
+        self.motor_left.forward_rotation()
+        self.motor_right.reverse_rotation()
+
+    def left(self) -> None:
+        """左に進む"""
+        self.motor_left.reverse_rotation()
+        self.motor_right.forward_rotation()
+
+    def backward(self) -> None:
+        """後進"""
+        self.motor_left.reverse_rotation()
+        self.motor_right.reverse_rotation()
+
+    def stop(self) -> None:
+        """停止"""
+        self.motor_left.brake()
+        self.motor_right.brake()
+
+    def release(self) -> None:
+        """慣性で回転"""
+        self.motor_left.idle()
+        self.motor_right.idle()
+
+
+class MotorStopIfExit:
+    def __init__(self, motor_driver):
+        self.motor_driver = motor_driver
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, type, value, traceback):
+        self.motor_driver.stop()
