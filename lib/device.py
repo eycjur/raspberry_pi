@@ -36,7 +36,7 @@ class Button:
         True
 
     Hint:
-        3V3 → ボタン → GPIO16の順に接続
+        3V3(OUT) → ボタン → GPIO16の順に接続
     """
     def __init__(self, num_in: int) -> None:
         self.pin = Pin(num_in, Pin.IN, Pin.PULL_DOWN)
@@ -93,14 +93,14 @@ class AMeDAS:
         1013.25hPa, 25.00C, 50.00%
 
     Hint:
-        | BME280 | Pico |
-        | ------ | ---- |
-        | VCC    | 3V3  |
-        | GND    | GND  |
-        | SCL    | GP13 |  # 利用できるピンが限られているので注意
-        | SDA    | GP12 |
-        | CSB    |      |
-        | SDO    | GND  |  # I2CかSPIかを決めるピン。GNDでI2C
+        | BME280 | Pico     |
+        | ------ | -------- |
+        | VCC    | 3V3(OUT) |
+        | GND    | GND      |
+        | SCL    | GP13     |  # 利用できるピンが限られているので注意
+        | SDA    | GP12     |
+        | CSB    |          |
+        | SDO    | GND      |  # I2CかSPIかを決めるピン。GNDでI2C
     """
     def __init__(self, num_sda: int, num_scl: int) -> None:
         import bme280  # need: micropython-bme280
@@ -131,12 +131,12 @@ class Display:
         >>> display.print("Hello, world!")
 
     Hint:
-        | LCD | Pico |
-        | --- | ---- |
-        | VCC | Vbus |
-        | GND | GND  |
-        | SDA | GP12 |
-        | SCL | GP13 |
+        | LCD | Pico     |
+        | --- | -------- |
+        | VCC | 3V3(OUT) |
+        | GND | GND      |
+        | SDA | GP12     |
+        | SCL | GP13     |
     """
 
     def __init__(self, num_sda: int, num_scl: int) -> None:
@@ -176,11 +176,11 @@ class ServoMotor:
         >>>     time.sleep(1)
 
     Hint:
-        | SG90    | Pico |
-        | ------- | ---- |
-        | VCC(赤) | Vsys |
-        | GND(茶) | GND  |
-        | PWM(黃) | GP1  |
+        | SG90    | Pico     |
+        | ------- | -------  |
+        | VCC(赤) | 3V3(OUT) |
+        | GND(茶) | GND      |
+        | PWM(黃) | GP1      |
     """
     def __init__(self, num_pwm: int) -> None:
         self.pwm = PWM(Pin(num_pwm))
@@ -191,6 +191,7 @@ class ServoMotor:
 
         Args:
             degree (int): 角度(-90~90)
+                負の値は右に、正の値は左に回転する
 
         Returns:
             int: サーボモーターの値
@@ -206,6 +207,7 @@ class ServoMotor:
             degree (int): 角度(-90~90)
         """
         self.pwm.duty_u16(self._degree2servo_value(degree))
+        utime.sleep(0.5)  # サーボモーターが回転するのを待つ
 
 
 class UltrasonicSensor:
@@ -220,12 +222,12 @@ class UltrasonicSensor:
         0.0
 
     Hint:
-        | HC-SR04 | Pico |
-        | ------- | ---- |
-        | VCC     | Vsys |
-        | GND     | GND  |
-        | TRIG    | GP14 |
-        | ECHO    | GP15 |  # 5Vの信号を受け取るので分圧が必要
+        | HC-SR04 | Pico     |
+        | ------- | -------  |
+        | VCC     | 3V3(OUT) |
+        | GND     | GND      |
+        | TRIG    | GP14     |
+        | ECHO    | GP15     |  # 5Vの信号を受け取るので分圧が必要
         ECHO -> 1kΩ -> 2kΩ -> GND
                     └> GP15
     """
@@ -238,6 +240,21 @@ class UltrasonicSensor:
 
     def measure(self) -> float:
         """距離を測定する
+
+        - 3回の測定のうち、中央値を返す
+
+        Returns:
+            float: 距離（単位：cm）
+        """
+        distances = []
+        for _ in range(3):
+            distances.append(self._measure_once())
+            utime.sleep(0.1)
+        distances = sorted(distances)
+        return distances[1]
+
+    def _measure_once(self) -> float:
+        """一回距離を測定する
 
         Returns:
             float: 距離（単位：cm）
@@ -311,14 +328,14 @@ class MotorDriver:
     Hint:
         | DRV8835 | Pico       |
         | ------- | ---------- |
-        | VM      | Vsys       |
+        | VM      | 3V3(OUT)   |
         | AOUT1   | motor(左上) |
         | AOUT2   | motor(左下) |
         | BOUT1   | motor(右上) |
         | BOUT2   | motor(右下) |
         | GND     | GND        |
         | VCC     | Vbus       |
-        | MODE    |            |  # 0でIN/INモード、1でPH/ENモード
+        | MODE    | GND        |  # 0でIN/INモード、1でPH/ENモード
         | AIN1    | GP15       |
         | AIN2    | GP14       |
         | BIN1    | GP13       |
@@ -357,14 +374,3 @@ class MotorDriver:
         """慣性で回転"""
         self.motor_left.idle()
         self.motor_right.idle()
-
-
-class MotorStopIfExit:
-    def __init__(self, motor_driver):
-        self.motor_driver = motor_driver
-
-    def __enter__(self):
-        pass
-
-    def __exit__(self, type, value, traceback):
-        self.motor_driver.stop()

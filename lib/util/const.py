@@ -1,1 +1,1 @@
-ERROR_FILE_PATH = "/error.txt"
+ERROR_FILE_PATH = "/log.txt"

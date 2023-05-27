@@ -18,7 +18,9 @@ class CustomLogging:
         message = self._format(message)
         self._write_console(message)
         self._write_file(message)
-        self._write_slack(message)
+
+        if is_wifi_usable():
+            self._write_slack(message)
 
     def _write_console(self, message):
         print(message)
@@ -29,5 +31,5 @@ class CustomLogging:
         }))
 
     def _write_file(self, message):
-        with open(ERROR_FILE_PATH, "a") as f:
+        with open(ERROR_FILE_PATH, "a", encoding="utf-8") as f:
             f.write(f"{message}\n")

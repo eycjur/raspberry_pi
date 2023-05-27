@@ -2,13 +2,13 @@ import utime
 
 import device
 from util.judge import is_wifi_usable  # noqa: F401
-from util.wifi import prepare_wifi
 from util.errors import TimeoutError
 from util.logging import CustomLogging
 
 
 if is_wifi_usable():
     import uasyncio
+    from util.wifi import prepare_wifi
 
     wlan = uasyncio.run(prepare_wifi())
 
@@ -24,28 +24,42 @@ motor_driver = device.MotorDriver(
 )
 
 
+class Distance:
+    def __init__(self, left: int, front: int, right: int) -> None:
+        self.left = left
+        self.front = front
+        self.right = right
+
+    def __str__(self) -> str:
+        return f"Distance(left: {self.left}, front: {self.front}, right: {self.right})"
+
+
 def run():
     while True:
         try:
             list_distance = []
-            for angle in [-60, -30, 0, 30, 60]:
+            for angle in [-60, 0, 60]:
                 servo_motor.set_angle(angle)
                 list_distance += [sensor.measure()]
-                utime.sleep(0.2)
-            print(f"list_distance{list_distance}")
+            distance = Distance(
+                left=list_distance[2],
+                front=list_distance[1],
+                right=list_distance[0]
+            )
+            logger.write(distance)
         except TimeoutError:
             logger.write("TimeoutError")
             motor_driver.stop()
         else:  # 正常に終了した場合
-            if list_distance[2] < 20:
-                if list_distance[0] < 10 and list_distance[4] < 10:
-                    motor_driver.backward()
-                if list_distance[0] < list_distance[4]:
-                    motor_driver.left()
-                else:
-                    motor_driver.right()
-            else:
+            if distance.front > 40:
                 motor_driver.forward()
+                continue
+            if distance.left < 20 and distance.right < 20:
+                motor_driver.backward()
+            if distance.left < distance.right:
+                motor_driver.right()
+            else:  # distance.left >= distance.right
+                motor_driver.left()
 
         utime.sleep(1)
 
