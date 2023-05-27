@@ -1,7 +1,7 @@
 import network
 import uasyncio
-from util.secret import WIFI_SSID, WIFI_PASS
-from util.errors import WifiConnectionTimeoutError
+from src.secret import WIFI_SSID, WIFI_PASS
+from src.errors import WifiConnectionTimeoutError
 
 
 async def prepare_wifi():

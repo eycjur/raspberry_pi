@@ -1,14 +1,14 @@
 import utime
 
-import device
-from util.judge import is_wifi_usable  # noqa: F401
-from util.errors import TimeoutError
-from util.logging import CustomLogging
+from src import device
+from src.errors import TimeoutError
+from src.util.judge import is_wifi_usable  # noqa: F401
+from src.util.logging import CustomLogging
 
 
 if is_wifi_usable():
     import uasyncio
-    from util.wifi import prepare_wifi
+    from src.util.wifi import prepare_wifi
 
     wlan = uasyncio.run(prepare_wifi())
 

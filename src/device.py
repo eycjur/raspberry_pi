@@ -1,7 +1,7 @@
 from machine import I2C, Pin, PWM
 import utime
 
-from util.errors import ConnectionError, TimeoutError
+from src.errors import ConnectionError, TimeoutError
 
 
 class LED:

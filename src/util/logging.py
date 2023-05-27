@@ -1,9 +1,9 @@
 import json
 
-from util.time import get_time_str
-from util.secret import WEB_HOOK_URL
-from util.judge import is_wifi_usable
-from util.const import ERROR_FILE_PATH
+from src.const import ERROR_FILE_PATH
+from src.secret import WEB_HOOK_URL
+from src.util.judge import is_wifi_usable
+from src.util.time import get_time_str
 
 
 if is_wifi_usable():
