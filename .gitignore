@@ -2,7 +2,6 @@
 
 lib/
 uf2/
-img/
 secret.py
 
 *.dmg
