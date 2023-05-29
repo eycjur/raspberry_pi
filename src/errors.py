@@ -6,5 +6,9 @@ class WifiConnectionTimeoutError(Exception):
     pass
 
 
-class TimeoutError(Exception):
+class UltrasonicSensorTimeoutError(Exception):
+    pass
+
+
+class TemperatureExtremeError(Exception):
     pass

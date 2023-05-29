@@ -1,10 +1,11 @@
 import utime
 
 from src import device
-from src.errors import TimeoutError
+from src.errors import UltrasonicSensorTimeoutError, TemperatureExtremeError
+from src.dataclasses import Distance
+from src.const import ALLOW_TEMPERATURE_MAX
 from src.util.judge import is_wifi_usable  # noqa: F401
 from src.util.logging import CustomLogging
-
 
 if is_wifi_usable():
     import uasyncio
@@ -14,6 +15,7 @@ if is_wifi_usable():
 
 logger = CustomLogging()
 
+temperature_sensor = device.TemperatureSensor(num_in=4)
 servo_motor = device.ServoMotor(num_pwm=1)
 sensor = device.UltrasonicSensor(num_trigger=14, num_echo=15)
 motor_driver = device.MotorDriver(
@@ -24,18 +26,15 @@ motor_driver = device.MotorDriver(
 )
 
 
-class Distance:
-    def __init__(self, left: int, front: int, right: int) -> None:
-        self.left = left
-        self.front = front
-        self.right = right
-
-    def __str__(self) -> str:
-        return f"Distance(left: {self.left}, front: {self.front}, right: {self.right})"
-
-
 def run():
     while True:
+        temperature = temperature_sensor.measure()
+        logger.write(temperature)
+        if temperature > ALLOW_TEMPERATURE_MAX:  # 温度が上がりすぎたら停止
+            raise TemperatureExtremeError(
+                f"Temperature is too high: {temperature}℃"
+            )
+
         try:
             list_distance = []
             for angle in [-60, 0, 60]:
@@ -47,8 +46,8 @@ def run():
                 right=list_distance[0]
             )
             logger.write(distance)
-        except TimeoutError:
-            logger.write("TimeoutError")
+        except UltrasonicSensorTimeoutError:
+            logger.write("UltrasonicSensorTimeoutError")
             motor_driver.stop()
         else:  # 正常に終了した場合
             if distance.front > 40:

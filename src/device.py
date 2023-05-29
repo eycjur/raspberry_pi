@@ -1,11 +1,45 @@
-from machine import I2C, Pin, PWM
+from machine import I2C, Pin, PWM, ADC
 import utime
 
-from src.errors import ConnectionError, TimeoutError
+from src.errors import ConnectionError, UltrasonicSensorTimeoutError
+from src.const import (
+    SERVO_MOTOR_WAIT_TIME_SEC,
+    ULTRASONIC_SENSOR_MEASURE_INTERVAL_SEC,
+    I2C_FREQUENCY_HZ,
+    PWM_FREQUENCY_HZ,
+    ULTRASONIC_SENSOR_MAX_TRY
+)
+
+
+class TemperatureSensor:
+    """基板上の温度センサから温度情報を取得するクラス
+
+    Examples:
+        >>> temperature = device.Temperature(num_in=4)
+        >>> temperature.measure()
+        25.0
+    """
+    conversion_factor = 3.3 / (65535)
+
+    def __init__(self, num_in: int) -> None:
+        self.adc = ADC(num_in)
+
+    def measure(self) -> float:
+        """温度を測定する
+
+        Returns:
+            float: 温度
+        """
+        # 整数値から電圧に変換
+        reading = self.adc.read_u16() * self.conversion_factor
+        # 27℃のときの電圧が0.706V、温度が1℃上がると電圧が0.001721V減少する
+        return 27 - (reading - 0.706) / 0.001721
 
 
 class LED:
     """LED（発光ダイオード）を制御するクラス
+
+    - 基板上のLEDを利用する場合は、num_outに25を指定する
 
     Examples:
         >>> led = device.LED(num_out=15)
@@ -59,7 +93,7 @@ class MotionSensor:
         True
     """
     def __init__(self, num_in: int) -> None:
-        self.pin = Pin(20, Pin.IN, Pin.PULL_DOWN)
+        self.pin = Pin(num_in, Pin.IN, Pin.PULL_DOWN)
 
     def is_detect(self) -> bool:
         """モーションを検知しているかを返す
@@ -80,7 +114,8 @@ class AMeDASMeasurement:
 
     def __str__(self):
         return (
-            f"{self.pressure:.02f}hPa, {self.temperature:.02f}C, {self.humidity:.02f}%"
+            f"{self.pressure:.02f}hPa, {self.temperature:.02f}C, "
+            + f"{self.humidity:.02f}%"
         )
 
 
@@ -105,7 +140,9 @@ class AMeDAS:
     def __init__(self, num_sda: int, num_scl: int) -> None:
         import bme280  # need: micropython-bme280
 
-        i2c = I2C(0, sda=Pin(num_sda), scl=Pin(num_scl), freq=400000)
+        i2c = I2C(
+            id=0, sda=Pin(num_sda), scl=Pin(num_scl), freq=I2C_FREQUENCY_HZ
+        )
         if not i2c.scan():
             raise ConnectionError("i2cの接続が正しくありません")
         self.bme = bme280.BME280(i2c=i2c)
@@ -143,10 +180,12 @@ class Display:
         from machine_i2c_lcd import I2cLcd
 
         I2C_ADDR = 0x27
-        i2c = I2C(0, sda=Pin(num_sda), scl=Pin(num_scl), freq=400000)
+        i2c = I2C(
+            id=0, sda=Pin(num_sda), scl=Pin(num_scl), freq=I2C_FREQUENCY_HZ
+        )
         if not i2c.scan():
             raise ConnectionError("i2cの接続が正しくありません")
-        self.lcd = I2cLcd(i2c, I2C_ADDR, 2, 16)
+        self.lcd = I2cLcd(i2c, I2C_ADDR, num_lines=2, num_columns=16)
         self.clear()
 
     def print(self, value) -> None:
@@ -184,7 +223,7 @@ class ServoMotor:
     """
     def __init__(self, num_pwm: int) -> None:
         self.pwm = PWM(Pin(num_pwm))
-        self.pwm.freq(50)
+        self.pwm.freq(PWM_FREQUENCY_HZ)
 
     def _degree2servo_value(self, degree):
         """角度をサーボモーターの値に変換する
@@ -197,7 +236,7 @@ class ServoMotor:
             int: サーボモーターの値
         """
         duty_ms = (degree + 90) / 180 * 1.9 + 0.5
-        duty_ratio = duty_ms / 20  # 50Hz
+        duty_ratio = duty_ms / (1000 / PWM_FREQUENCY_HZ)
         return int(duty_ratio * 65535)
 
     def set_angle(self, degree: int) -> None:
@@ -207,7 +246,7 @@ class ServoMotor:
             degree (int): 角度(-90~90)
         """
         self.pwm.duty_u16(self._degree2servo_value(degree))
-        utime.sleep(0.5)  # サーボモーターが回転するのを待つ
+        utime.sleep(SERVO_MOTOR_WAIT_TIME_SEC)  # サーボモーターが回転するのを待つ
 
 
 class UltrasonicSensor:
@@ -231,9 +270,6 @@ class UltrasonicSensor:
         ECHO -> 1kΩ -> 2kΩ -> GND
                     └> GP15
     """
-
-    MAX_TRY = 10000
-
     def __init__(self, num_trigger: int, num_echo: int) -> None:
         self.trigger = Pin(num_trigger, Pin.OUT)
         self.echo = Pin(num_echo, Pin.IN)
@@ -249,7 +285,7 @@ class UltrasonicSensor:
         distances = []
         for _ in range(3):
             distances.append(self._measure_once())
-            utime.sleep(0.1)
+            utime.sleep(ULTRASONIC_SENSOR_MEASURE_INTERVAL_SEC)
         distances = sorted(distances)
         return distances[1]
 
@@ -265,22 +301,24 @@ class UltrasonicSensor:
         utime.sleep(0.00001)
         self.trigger.low()
 
-        for i in range(self.MAX_TRY):
+        for i in range(ULTRASONIC_SENSOR_MAX_TRY):
             if self.echo.value() != 0:
                 signaloff = utime.ticks_us()
                 break
+            utime.sleep_us(1)
         else:  # breakしなかった場合
-            raise TimeoutError("センサーの値を読み取れませんでした")
-        for i in range(self.MAX_TRY):
+            raise UltrasonicSensorTimeoutError("センサーの値を読み取れませんでした")
+        for i in range(ULTRASONIC_SENSOR_MAX_TRY):
             if self.echo.value() != 1:
                 signalon = utime.ticks_us()
                 break
+            utime.sleep_us(1)
         else:  # breakしなかった場合
-            raise TimeoutError("センサーの値を読み取れませんでした")
+            raise UltrasonicSensorTimeoutError("センサーの値を読み取れませんでした")
 
-        timepassed_s = (signalon - signaloff) / 1000000
+        timepassed_s = (signalon - signaloff) / 1000 / 1000  # μs -> s
         distance_m = (timepassed_s * 342.62) / 2  # 20℃
-        return distance_m * 100
+        return distance_m * 100  # m -> cm
 
 
 class IndividualMotorDriver:
@@ -317,7 +355,9 @@ class MotorDriver:
         https://akizukidenshi.com/download/ds/akizuki/AE-DRV8835-S_20210526.pdf
 
     Examples:
-        >>> motor_driver = device.MotorDriver(num_a_in_1=15, num_a_in_2=14, num_b_in_1=13, num_b_in_2=12)
+        >>> motor_driver = device.MotorDriver(
+        >>>     num_a_in_1=15, num_a_in_2=14, num_b_in_1=13, num_b_in_2=12
+        >>> )
         >>> motor_driver.forward()
         >>> motor_driver.right()
         >>> motor_driver.left()
