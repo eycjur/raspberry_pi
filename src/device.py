@@ -14,6 +14,9 @@ from src.const import (
 class TemperatureSensor:
     """基板上の温度センサから温度情報を取得するクラス
 
+    References:
+        https://github.com/raspberrypi/pico-micropython-examples/blob/35f9a54463fb2f2ca072b10048b200230d7ddfea/adc/temperature.py#L7
+
     Examples:
         >>> temperature = device.Temperature(num_in=4)
         >>> temperature.measure()
@@ -85,7 +88,10 @@ class Button:
 
 
 class MotionSensor:
-    """モーションセンサーを制御するクラス
+    """モーションセンサー(HC-SR501)を制御するクラス
+
+    References:
+        https://www.mpja.com/download/31227sc.pdf
 
     Examples:
         >>> motion_sensor = device.MotionSensor(num_in=17)
@@ -120,7 +126,11 @@ class AMeDASMeasurement:
 
 
 class AMeDAS:
-    """気圧、温度、湿度を測定するクラス
+    """温湿度・気圧センサ(BME280)で気圧、温度、湿度を測定するクラス
+
+    References:
+        https://akizukidenshi.com/download/ds/akizuki/AE-BME280_manu_v1.1.pdf
+        http://www.ne.jp/asahi/o-family/extdisk/BME280/BME280_DJP.pdf
 
     Examples:
         >>> amedas = device.AMeDAS(num_sda=12, num_scl=13)
@@ -157,23 +167,26 @@ class AMeDAS:
 
 
 class Display:
-    """LCDを制御するクラス
+    """LCD(LCD-1602)を制御するクラス
 
     次のコードを保存しておく
     https://github.com/dhylands/python_lcd/blob/master/lcd/machine_i2c_lcd.py
     https://github.com/dhylands/python_lcd/blob/master/lcd/lcd_api.py
+
+    References:
+        http://wiki.sunfounder.cc/index.php?title=LCD1602_Module
 
     Examples:
         >>> display = device.Display(num_sda=12, num_scl=13)
         >>> display.print("Hello, world!")
 
     Hint:
-        | LCD | Pico     |
-        | --- | -------- |
-        | VCC | 3V3(OUT) |
-        | GND | GND      |
-        | SDA | GP12     |
-        | SCL | GP13     |
+        | LCD | Pico |
+        | --- | ---- |
+        | VCC | Vsys |
+        | GND | GND  |
+        | SDA | GP12 |
+        | SCL | GP13 |
     """
 
     def __init__(self, num_sda: int, num_scl: int) -> None:
@@ -203,7 +216,7 @@ class Display:
 
 
 class ServoMotor:
-    """サーボモーター（回転を実現するモーター）を制御するクラス
+    """サーボモーター（回転を実現するモーター, SG90）を制御するクラス
 
     References:
         https://akizukidenshi.com/download/ds/towerpro/SG90_a.pdf
@@ -250,7 +263,7 @@ class ServoMotor:
 
 
 class UltrasonicSensor:
-    """超音波センサーを制御するクラス
+    """超音波センサー(HC-SR04)を制御するクラス
 
     References:
         https://akizukidenshi.com/download/ds/rainbow_e-technology/hc-sr04_v20.pdf
@@ -349,7 +362,7 @@ class IndividualMotorDriver:
 
 
 class MotorDriver:
-    """モータードライバーを制御するクラス
+    """モータードライバー(DRV8835)を制御するクラス
 
     References:
         https://akizukidenshi.com/download/ds/akizuki/AE-DRV8835-S_20210526.pdf
