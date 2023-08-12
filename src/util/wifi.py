@@ -21,7 +21,7 @@ async def prepare_wifi():
         if wlan.status() < 0 or wlan.status() >= network.STAT_GOT_IP:
             break
         print(f'Waiting for connection... status={status}')
-        uasyncio.sleep(1)
+        await uasyncio.sleep(1)
     else:  # breakしなかった場合
         raise WifiConnectionTimeoutError('Wifi connection timed out.')
 
